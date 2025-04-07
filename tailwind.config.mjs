@@ -1,5 +1,7 @@
+import tailwindcssAnimate from "tailwindcss-animate";
+
 /** @type {import('tailwindcss').Config} */
-module.exports = {
+const config = {
   darkMode: ["class"],
   content: [
     './app/**/*.{js,ts,jsx,tsx,mdx}', // Scan the app directory
@@ -57,12 +59,12 @@ module.exports = {
       },
       keyframes: {
         "accordion-down": {
-          from: { height: 0 },
+          from: { height: "0" }, // Changed 0 to "0" for consistency
           to: { height: "var(--radix-accordion-content-height)" },
         },
         "accordion-up": {
           from: { height: "var(--radix-accordion-content-height)" },
-          to: { height: 0 },
+          to: { height: "0" }, // Changed 0 to "0" for consistency
         },
       },
       animation: {
@@ -71,5 +73,7 @@ module.exports = {
       },
     },
   },
-  plugins: [require("tailwindcss-animate")],
-}
+  plugins: [tailwindcssAnimate], // Use the imported variable
+};
+
+export default config;
