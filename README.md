@@ -5,8 +5,9 @@ This repository provides an example of how to build an accessible Kanban board u
 - Next.js 15 App Router
 - React
 - @dnd-kit
-- Tailwind v4 
+- Tailwind v4
 - Shadcn/ui
+- pnpm
 
 Built on top of Georgegriff/react-dnd-kit-tailwind-shadcn-ui for a next-js implementation
 
