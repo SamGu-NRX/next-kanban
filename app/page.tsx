@@ -37,7 +37,7 @@ export default function HomePage() {
           Drag and Drop Kanban Board
         </h1>
         <KanbanBoard />
-        <p className="leading-7 [&:not(:first-child)]:mt-6">
+        <p className="leading-7 not-first:mt-6">
           With Keyboard Controls and Screen Reader interactions.
         </p>
       </main>
