@@ -1,0 +1,57 @@
+# Milestone 1 witness run @ bd95ccb194e29760f71cd8eb0e8dcddb25370c9f (witnesses red by design)
+$ pnpm test
+[33m@@ -3,16 +3,16 @@[39m
+[2m      "Project initiation and planning",[22m
+[2m      "Gather requirements from stakeholders",[22m
+[2m      "Create wireframes and mockups",[22m
+[2m    ],[22m
+[2m    "In progress": [[22m
+[31m+     "Build contact us page",[39m
+[2m      "Develop homepage layout",[22m
+[2m      "Design color scheme and typography",[22m
+[2m    ],[22m
+[2m    "Todo": [[22m
+[2m      "Implement user authentication",[22m
+[32m-     "Build contact us page",[39m
+[2m      "Create product catalog",[22m
+[2m      "Develop about us page",[22m
+[2m      "Optimize website for mobile devices",[22m
+[2m      "Integrate payment gateway",[22m
+[2m      "Perform testing and bug fixing",[22m
+
+ ❯ tests/board-cancel-restore-witness.test.tsx:157:23
+    155|   await sleep(50);
+    156| 
+    157|   expect(boardView()).toEqual(INITIAL_VIEW);
+       |                       ^
+    158| });
+    159| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  tests/board-ssr-window-witness.test.tsx > renders the board in a Node environment without window
+AssertionError: expected [Function] to not throw an error but 'ReferenceError: window is not defined' was thrown
+
+[32m- Expected:[39m 
+undefined
+
+[31m+ Received:[39m 
+"ReferenceError: window is not defined"
+
+ ❯ tests/board-ssr-window-witness.test.tsx:14:10
+     12|   expect(() => {
+     13|     html = renderToStaticMarkup(<KanbanBoard />);
+     14|   }).not.toThrow();
+       |          ^
+     15|   expect(html!).toContain("Todo");
+     16| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  2 failed (2)
+   Start at  22:40:56
+   Duration  14.79s (transform 655ms, setup 78ms, collect 2.22s, tests 6.43s, environment 2.92s, prepare 1.46s)
+
+ ELIFECYCLE  Test failed. See above for more details.

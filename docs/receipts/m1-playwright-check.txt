@@ -1,0 +1,3 @@
+# Playwright chromium verification @ bd95ccb194e29760f71cd8eb0e8dcddb25370c9f
+$ pnpm exec playwright install chromium && headless launch + screenshot smoke
+result: chromium launch OK
