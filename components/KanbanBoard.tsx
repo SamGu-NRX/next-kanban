@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { BoardColumn, BoardContainer } from "./BoardColumn";
@@ -23,6 +23,14 @@ import { type Task, TaskCard } from "./TaskCard";
 import type { Column } from "./BoardColumn";
 import { hasDraggableData } from "./utils";
 import { coordinateGetter } from "./multipleContainersKeyboardPreset";
+import {
+  createTask,
+  deleteTask,
+  editTask,
+  emptyBoard,
+  seedTasksIfEmpty,
+} from "@/lib/board";
+import { Button } from "./ui/button";
 
 const defaultCols = [
   {
@@ -41,83 +49,35 @@ const defaultCols = [
 
 export type ColumnId = (typeof defaultCols)[number]["id"];
 
-const initialTasks: Task[] = [
-  {
-    id: "task1",
-    columnId: "done",
-    content: "Project initiation and planning",
-  },
-  {
-    id: "task2",
-    columnId: "done",
-    content: "Gather requirements from stakeholders",
-  },
-  {
-    id: "task3",
-    columnId: "done",
-    content: "Create wireframes and mockups",
-  },
-  {
-    id: "task4",
-    columnId: "in-progress",
-    content: "Develop homepage layout",
-  },
-  {
-    id: "task5",
-    columnId: "in-progress",
-    content: "Design color scheme and typography",
-  },
-  {
-    id: "task6",
-    columnId: "todo",
-    content: "Implement user authentication",
-  },
-  {
-    id: "task7",
-    columnId: "todo",
-    content: "Build contact us page",
-  },
-  {
-    id: "task8",
-    columnId: "todo",
-    content: "Create product catalog",
-  },
-  {
-    id: "task9",
-    columnId: "todo",
-    content: "Develop about us page",
-  },
-  {
-    id: "task10",
-    columnId: "todo",
-    content: "Optimize website for mobile devices",
-  },
-  {
-    id: "task11",
-    columnId: "todo",
-    content: "Integrate payment gateway",
-  },
-  {
-    id: "task12",
-    columnId: "todo",
-    content: "Perform testing and bug fixing",
-  },
-  {
-    id: "task13",
-    columnId: "todo",
-    content: "Launch website and deploy to server",
-  },
-];
+// The column set is fixed; ids from Column rows are always one of these.
+function asColumnId(id: UniqueIdentifier): ColumnId {
+  return id as ColumnId;
+}
+
 export function KanbanBoard() {
   const [columns, setColumns] = useState<Column[]>(defaultCols);
   const pickedUpTaskColumn = useRef<ColumnId | null>(null);
   const columnsId = useMemo(() => columns.map((col) => col.id), [columns]);
 
-  const [tasks, setTasks] = useState<Task[]>(initialTasks);
+  // Sample tasks are seeded only when the board is empty (first run);
+  // see lib/board.ts and the README for the persistence decision.
+  const [tasks, setTasks] = useState<Task[]>(() => seedTasksIfEmpty([]));
 
   const [activeColumn, setActiveColumn] = useState<Column | null>(null);
 
   const [activeTask, setActiveTask] = useState<Task | null>(null);
+
+  // The DragOverlay portal needs `document`; it is mounted client-side only,
+  // after hydration, so the server render and the first client render match.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Task CRUD state.
+  const [addingToColumn, setAddingToColumn] = useState<ColumnId | null>(null);
+  const [editingTaskId, setEditingTaskId] = useState<UniqueIdentifier | null>(null);
+  const [resetArmed, setResetArmed] = useState(false);
 
   const sensors = useSensors(
     useSensor(MouseSensor),
@@ -148,10 +108,11 @@ export function KanbanBoard() {
           startColumnIdx + 1
         } of ${columnsId.length}`;
       } else if (active.data.current?.type === "Task") {
-        pickedUpTaskColumn.current = active.data.current.task.columnId;
+        const columnId = active.data.current.task.columnId;
+        pickedUpTaskColumn.current = columnId;
         const { tasksInColumn, taskPosition, column } = getDraggingTaskData(
           active.id,
-          pickedUpTaskColumn.current
+          columnId
         );
         return `Picked up Task ${
           active.data.current.task.content
@@ -243,6 +204,43 @@ export function KanbanBoard() {
       onDragEnd={onDragEnd}
       onDragOver={onDragOver}
     >
+      {tasks.length === 0 && (
+        <div
+          role="status"
+          className="mx-auto mb-4 flex max-w-xl flex-col items-center gap-2 rounded-lg border p-6 text-center"
+        >
+          <p className="font-semibold">Your board is empty</p>
+          <p className="text-sm text-muted-foreground">
+            Create your first task to get started.
+          </p>
+          <Button className="mt-1" onClick={() => setAddingToColumn("todo")}>
+            Create your first task
+          </Button>
+        </div>
+      )}
+      <div className="mb-2 flex justify-end">
+        <Button
+          variant={resetArmed ? "destructive" : "ghost"}
+          size="sm"
+          disabled={tasks.length === 0 && !resetArmed}
+          aria-label={
+            resetArmed ? "Confirm board reset" : "Reset board to empty"
+          }
+          onClick={() => {
+            if (resetArmed) {
+              setTasks(emptyBoard());
+              setEditingTaskId(null);
+              setAddingToColumn(null);
+              setResetArmed(false);
+            } else {
+              setResetArmed(true);
+            }
+          }}
+          onBlur={() => setResetArmed(false)}
+        >
+          {resetArmed ? "Really reset? Click again" : "Reset board"}
+        </Button>
+      </div>
       <BoardContainer>
         <SortableContext items={columnsId}>
           {columns.map((col) => (
@@ -250,12 +248,29 @@ export function KanbanBoard() {
               key={col.id}
               column={col}
               tasks={tasks.filter((task) => task.columnId === col.id)}
+              isAddingTask={addingToColumn === col.id}
+              onStartAddTask={() => setAddingToColumn(asColumnId(col.id))}
+              onCancelAddTask={() => setAddingToColumn(null)}
+              onSubmitAddTask={(content) => {
+                setTasks((prev) => createTask(prev, asColumnId(col.id), content));
+                setAddingToColumn(null);
+              }}
+              onEditTask={(taskId) => setEditingTaskId(taskId)}
+              onDeleteTask={(taskId) =>
+                setTasks((prev) => deleteTask(prev, taskId))
+              }
+              editingTaskId={editingTaskId}
+              onSaveEditTask={(taskId, content) => {
+                setTasks((prev) => editTask(prev, taskId, content));
+                setEditingTaskId(null);
+              }}
+              onCancelEditTask={() => setEditingTaskId(null)}
             />
           ))}
         </SortableContext>
       </BoardContainer>
 
-      {"document" in window &&
+      {mounted &&
         createPortal(
           <DragOverlay>
             {activeColumn && (
@@ -347,7 +362,9 @@ export function KanbanBoard() {
           overTask &&
           activeTask.columnId !== overTask.columnId
         ) {
-          activeTask.columnId = overTask.columnId;
+          // FIXME(milestone 3): in-place mutation and eager commit move into a
+          // transactional snapshot/restore model.
+          activeTask.columnId = asColumnId(overTask.columnId);
           return arrayMove(tasks, activeIndex, overIndex - 1);
         }
 
@@ -363,7 +380,7 @@ export function KanbanBoard() {
         const activeIndex = tasks.findIndex((t) => t.id === activeId);
         const activeTask = tasks[activeIndex];
         if (activeTask) {
-          activeTask.columnId = overId as ColumnId;
+          activeTask.columnId = asColumnId(overId);
           return arrayMove(tasks, activeIndex, activeIndex);
         }
         return tasks;
