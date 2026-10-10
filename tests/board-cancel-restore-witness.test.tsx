@@ -85,7 +85,7 @@ function boardView(): BoardView {
   const view = { Todo: [], "In progress": [], Done: [] } as BoardView;
   for (const title of COLUMN_TITLES) {
     view[title] = taskCardsIn(columnCard(title)).map(
-      (card) => (card.lastElementChild?.textContent ?? "").trim()
+      (card) => (card.querySelector<HTMLElement>(".grow")?.textContent ?? "").trim()
     );
   }
   return view;
@@ -129,9 +129,11 @@ it("cancelling a keyboard drag restores prior task and column state", async () =
   installGeometryStub(container, draggedOriginalRect);
 
   // Pick up "Build contact us page" (second task in Todo) with the keyboard.
-  const content = screen.getByText(DRAGGED_TASK);
-  const card = content.parentElement as HTMLElement;
-  const handle = within(card).getByRole("button", { name: /move task/i });
+  const draggedCard = taskCardRoots().find(
+    (c) => c.querySelector<HTMLElement>(".grow")?.textContent === DRAGGED_TASK
+  );
+  if (!draggedCard) throw new Error("dragged task card not found");
+  const handle = within(draggedCard).getByRole("button", { name: /move task/i });
   fireEvent.keyDown(handle, { key: " ", code: "Space" });
 
   // The drag overlay mounts in a body portal once the drag starts.

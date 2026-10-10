@@ -67,6 +67,11 @@ export function KanbanBoard() {
 
   const [activeTask, setActiveTask] = useState<Task | null>(null);
 
+  // Transactional drag: moves during a drag land on a working copy, never on
+  // committed state. onDragEnd commits the copy once; onDragCancel discards it.
+  const [dragTasks, setDragTasks] = useState<Task[] | null>(null);
+  const effectiveTasks = dragTasks ?? tasks;
+
   // The DragOverlay portal needs `document`; it is mounted client-side only,
   // after hydration, so the server render and the first client render match.
   const [mounted, setMounted] = useState(false);
@@ -88,7 +93,7 @@ export function KanbanBoard() {
   );
 
   function getDraggingTaskData(taskId: UniqueIdentifier, columnId: ColumnId) {
-    const tasksInColumn = tasks.filter((task) => task.columnId === columnId);
+    const tasksInColumn = effectiveTasks.filter((task) => task.columnId === columnId);
     const taskPosition = tasksInColumn.findIndex((task) => task.id === taskId);
     const column = columns.find((col) => col.id === columnId);
     return {
@@ -203,6 +208,7 @@ export function KanbanBoard() {
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onDragOver={onDragOver}
+      onDragCancel={onDragCancel}
     >
       {tasks.length === 0 && (
         <div
@@ -247,7 +253,7 @@ export function KanbanBoard() {
             <BoardColumn
               key={col.id}
               column={col}
-              tasks={tasks.filter((task) => task.columnId === col.id)}
+              tasks={effectiveTasks.filter((task) => task.columnId === col.id)}
               isAddingTask={addingToColumn === col.id}
               onStartAddTask={() => setAddingToColumn(asColumnId(col.id))}
               onCancelAddTask={() => setAddingToColumn(null)}
@@ -277,7 +283,7 @@ export function KanbanBoard() {
               <BoardColumn
                 isOverlay
                 column={activeColumn}
-                tasks={tasks.filter(
+                tasks={effectiveTasks.filter(
                   (task) => task.columnId === activeColumn.id
                 )}
               />
@@ -291,6 +297,8 @@ export function KanbanBoard() {
 
   function onDragStart(event: DragStartEvent) {
     if (!hasDraggableData(event.active)) return;
+    // Snapshot the committed state as the drag's working copy.
+    setDragTasks(tasks);
     const data = event.active.data.current;
     if (data?.type === "Column") {
       setActiveColumn(data.column);
@@ -308,7 +316,21 @@ export function KanbanBoard() {
     setActiveTask(null);
 
     const { active, over } = event;
-    if (!over) return;
+    if (!over) {
+      // Dropped outside any droppable: no valid destination, so restore the
+      // pre-drag state instead of persisting intermediate movement.
+      setDragTasks(null);
+      pickedUpTaskColumn.current = null;
+      return;
+    }
+
+    // Single commit point: a drop promotes the drag's working copy. A
+    // cancelled drag never reaches this line, so intermediate movement is
+    // never persisted.
+    if (dragTasks) {
+      setTasks(dragTasks);
+      setDragTasks(null);
+    }
 
     const activeId = active.id;
     const overId = over.id;
@@ -331,6 +353,15 @@ export function KanbanBoard() {
     });
   }
 
+  function onDragCancel() {
+    // Discard the working copy: committed tasks and column order are restored
+    // exactly as they were when the drag started.
+    setDragTasks(null);
+    setActiveColumn(null);
+    setActiveTask(null);
+    pickedUpTaskColumn.current = null;
+  }
+
   function onDragOver(event: DragOverEvent) {
     const { active, over } = event;
     if (!over) return;
@@ -350,40 +381,41 @@ export function KanbanBoard() {
 
     if (!isActiveATask) return;
 
-    // Im dropping a Task over another Task
+    // Dragging a Task over another Task: updates land on the working copy
+    // with new task objects (no in-place mutation).
     if (isActiveATask && isOverATask) {
-      setTasks((tasks) => {
-        const activeIndex = tasks.findIndex((t) => t.id === activeId);
-        const overIndex = tasks.findIndex((t) => t.id === overId);
-        const activeTask = tasks[activeIndex];
-        const overTask = tasks[overIndex];
+      setDragTasks((current) => {
+        if (!current) return current;
+        const activeIndex = current.findIndex((t) => t.id === activeId);
+        const overIndex = current.findIndex((t) => t.id === overId);
+        const draggedTask = current[activeIndex];
+        const overTask = current[overIndex];
         if (
-          activeTask &&
+          draggedTask &&
           overTask &&
-          activeTask.columnId !== overTask.columnId
+          draggedTask.columnId !== overTask.columnId
         ) {
-          // FIXME(milestone 3): in-place mutation and eager commit move into a
-          // transactional snapshot/restore model.
-          activeTask.columnId = asColumnId(overTask.columnId);
-          return arrayMove(tasks, activeIndex, overIndex - 1);
+          const withColumn = current.map((t) =>
+            t.id === activeId
+              ? { ...t, columnId: asColumnId(overTask.columnId) }
+              : t
+          );
+          return arrayMove(withColumn, activeIndex, overIndex - 1);
         }
 
-        return arrayMove(tasks, activeIndex, overIndex);
+        return arrayMove(current, activeIndex, overIndex);
       });
     }
 
     const isOverAColumn = overData?.type === "Column";
 
-    // Im dropping a Task over a column
+    // Dragging a Task over a column: move it into that column (end of list).
     if (isActiveATask && isOverAColumn) {
-      setTasks((tasks) => {
-        const activeIndex = tasks.findIndex((t) => t.id === activeId);
-        const activeTask = tasks[activeIndex];
-        if (activeTask) {
-          activeTask.columnId = asColumnId(overId);
-          return arrayMove(tasks, activeIndex, activeIndex);
-        }
-        return tasks;
+      setDragTasks((current) => {
+        if (!current) return current;
+        return current.map((t) =>
+          t.id === activeId ? { ...t, columnId: asColumnId(overId) } : t
+        );
       });
     }
   }
