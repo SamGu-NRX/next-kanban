@@ -29,7 +29,15 @@ import {
   editTask,
   emptyBoard,
   seedTasksIfEmpty,
+  type BoardColumnId,
 } from "@/lib/board";
+import {
+  STORAGE_KEY,
+  loadBoard,
+  parseBoardPayload,
+  saveBoard,
+  serializeBoard,
+} from "@/lib/persistence";
 import { Button } from "./ui/button";
 
 const defaultCols = [
@@ -54,13 +62,22 @@ function asColumnId(id: UniqueIdentifier): ColumnId {
   return id as ColumnId;
 }
 
+/** Tasks as stored: ids are strings in the persisted schema. */
+function toPersisted(tasks: Task[]) {
+  return tasks.map((t) => ({
+    id: String(t.id),
+    content: t.content,
+    columnId: t.columnId as BoardColumnId,
+  }));
+}
+
 export function KanbanBoard() {
   const [columns, setColumns] = useState<Column[]>(defaultCols);
   const pickedUpTaskColumn = useRef<ColumnId | null>(null);
   const columnsId = useMemo(() => columns.map((col) => col.id), [columns]);
 
-  // Sample tasks are seeded only when the board is empty (first run);
-  // see lib/board.ts and the README for the persistence decision.
+  // The seeded sample board is also the server render and the first client
+  // render, so hydration matches; stored tasks load right after mount.
   const [tasks, setTasks] = useState<Task[]>(() => seedTasksIfEmpty([]));
 
   const [activeColumn, setActiveColumn] = useState<Column | null>(null);
@@ -75,9 +92,112 @@ export function KanbanBoard() {
   // The DragOverlay portal needs `document`; it is mounted client-side only,
   // after hydration, so the server render and the first client render match.
   const [mounted, setMounted] = useState(false);
+
+  // Persistence state. storageNotice: saving/loading failed but the board
+  // stays usable. conflictNotice: another view changed stored data while this
+  // view has unsaved (dirty) work — auto-save is paused until it is resolved.
+  // importNotice: an import file was rejected.
+  const [storageNotice, setStorageNotice] = useState<string | null>(null);
+  const [conflictNotice, setConflictNotice] = useState<string | null>(null);
+  const [importNotice, setImportNotice] = useState<string | null>(null);
+  const hydratedRef = useRef(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Load once after mount: stored tasks replace the seeded board; a corrupt
+  // or unsupported store surfaces a notice and keeps its bytes untouched.
   useEffect(() => {
     setMounted(true);
+    const result = loadBoard();
+    if (result.status === "loaded") {
+      setTasks(result.tasks.map((t) => ({ ...t })));
+    } else if (result.status === "empty") {
+      // First run: keep the seeded sample board and persist it.
+      const saved = saveBoard(toPersisted(tasks));
+      if (saved.status !== "saved") setStorageNotice(saved.reason);
+    } else {
+      setStorageNotice(
+        `${result.reason} Showing sample data; the stored copy was not changed.`
+      );
+    }
+    hydratedRef.current = true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Persist committed state. Never runs mid-drag (the working copy is not
+  // committed), and pauses while a cross-tab conflict is unresolved so a
+  // stale save can never silently overwrite the other view's board.
+  useEffect(() => {
+    if (!hydratedRef.current || dragTasks || conflictNotice) return;
+    const result = saveBoard(toPersisted(tasks));
+    if (result.status === "saved") {
+      setStorageNotice(null);
+    } else {
+      setStorageNotice(result.reason);
+    }
+  }, [tasks, dragTasks, conflictNotice]);
+
+  // Watch for another tab rewriting the board under us.
+  useEffect(() => {
+    function onStorage(event: StorageEvent) {
+      if (event.key !== STORAGE_KEY && event.key !== null) return;
+      if (event.newValue === null) {
+        setConflictNotice(
+          "The saved board was removed in another view. Export this board to keep it, or discard the notice and start empty."
+        );
+        return;
+      }
+      const parsed = parseBoardPayload(event.newValue);
+      if (parsed.status !== "loaded") return;
+      const incoming = JSON.stringify(parsed.tasks);
+      const mine = JSON.stringify(toPersisted(tasks));
+      if (incoming !== mine) {
+        setConflictNotice(
+          "Another view saved a different board. Load it, or export this board first to keep your copy."
+        );
+      }
+    }
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [tasks]);
+
+  function exportBoard() {
+    const serialized = serializeBoard(toPersisted(tasks));
+    if (!serialized.ok) {
+      setStorageNotice(serialized.reason);
+      return;
+    }
+    const blob = new Blob([serialized.payload], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "kanban-board.json";
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function importBoard(file: File) {
+    let text: string;
+    try {
+      text = await file.text();
+    } catch {
+      setImportNotice("Import rejected: the file could not be read.");
+      return;
+    }
+    const parsed = parseBoardPayload(text);
+    if (parsed.status === "invalid" || parsed.status === "unavailable") {
+      setImportNotice(`Import rejected: ${parsed.reason}`);
+      return;
+    }
+    if (parsed.status === "empty") {
+      setImportNotice("Import rejected: the file contained no board.");
+      return;
+    }
+    // Importing is an explicit user choice, so it also resolves any open
+    // conflict in favor of the imported board.
+    setTasks(parsed.tasks.map((t) => ({ ...t })));
+    setImportNotice(null);
+    setConflictNotice(null);
+  }
 
   // Task CRUD state.
   const [addingToColumn, setAddingToColumn] = useState<ColumnId | null>(null);
@@ -199,6 +319,8 @@ export function KanbanBoard() {
     },
   };
 
+  const anyNotice = storageNotice || conflictNotice || importNotice;
+
   return (
     <DndContext
       accessibility={{
@@ -210,6 +332,69 @@ export function KanbanBoard() {
       onDragOver={onDragOver}
       onDragCancel={onDragCancel}
     >
+      {anyNotice && (
+        <div
+          role="status"
+          className="mx-auto mb-4 max-w-3xl rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900"
+        >
+          <div className="flex flex-col gap-2">
+            {storageNotice && (
+              <div className="flex items-center justify-between gap-3">
+                <span>{storageNotice}</span>
+                <Button variant="outline" size="sm" onClick={exportBoard}>
+                  Export board
+                </Button>
+              </div>
+            )}
+            {conflictNotice && (
+              <div className="flex items-center justify-between gap-3">
+                <span>{conflictNotice}</span>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const result = loadBoard();
+                      if (result.status === "loaded") {
+                        setTasks(result.tasks.map((t) => ({ ...t })));
+                        setConflictNotice(null);
+                      }
+                    }}
+                  >
+                    Load the saved board
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={exportBoard}
+                  >
+                    Export my board
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setConflictNotice(null)}
+                  >
+                    Dismiss
+                  </Button>
+                </div>
+              </div>
+            )}
+            {importNotice && (
+              <div className="flex items-center justify-between gap-3">
+                <span>{importNotice}</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setImportNotice(null)}
+                >
+                  Dismiss
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
       {tasks.length === 0 && (
         <div
           role="status"
@@ -224,7 +409,29 @@ export function KanbanBoard() {
           </Button>
         </div>
       )}
-      <div className="mb-2 flex justify-end">
+      <div className="mb-2 flex justify-end gap-2">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="application/json,.json"
+          className="hidden"
+          aria-label="Import board from a JSON file"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            if (file) void importBoard(file);
+            event.target.value = "";
+          }}
+        />
+        <Button variant="ghost" size="sm" onClick={exportBoard}>
+          Export
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => fileInputRef.current?.click()}
+        >
+          Import
+        </Button>
         <Button
           variant={resetArmed ? "destructive" : "ghost"}
           size="sm"

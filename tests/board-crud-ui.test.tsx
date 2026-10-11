@@ -1,10 +1,16 @@
 // UI-level CRUD: create, edit, delete, validation, and empty states, driven
 // through the rendered board the way a user would.
-import { afterEach, expect, it } from "vitest";
+import { afterEach, beforeEach, expect, it } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { KanbanBoard } from "@/components/KanbanBoard";
 
 afterEach(cleanup);
+
+// Each test starts from first-run conditions: stored boards from a previous
+// test must not load into the next render.
+beforeEach(() => {
+  window.localStorage.clear();
+});
 
 const COLUMN_TITLES = ["Todo", "In progress", "Done"] as const;
 type BoardView = Record<(typeof COLUMN_TITLES)[number], string[]>;
@@ -120,7 +126,7 @@ it("deletes exactly one task", () => {
   ) as HTMLElement;
   fireEvent.click(within(card).getByRole("button", { name: /delete task/i }));
 
-  const { Todo, ...rest } = INITIAL_VIEW;
+  const { ...rest } = INITIAL_VIEW;
   expect(boardView()).toEqual({
     ...rest,
     Todo: INITIAL_VIEW.Todo.filter((c) => c !== "Build contact us page"),
