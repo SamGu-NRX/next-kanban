@@ -1,0 +1,23 @@
+# Milestone 3 cancellation test transcript
+- Date: 2026-10-10T23:20:45Z
+- Command: pnpm exec vitest run
+
+
+ RUN  v3.2.7 /home/user/work/next-kanban-task
+
+ ✓ tests/board-crud-ui.test.tsx (5 tests) 4356ms
+   ✓ creates a task in the intended column  1824ms
+   ✓ rejects empty content with a visible message  526ms
+   ✓ edits exactly one task's content  632ms
+   ✓ deletes exactly one task  528ms
+   ✓ shows per-column empty states and an empty-board call to action after reset  844ms
+ ✓ tests/board-cancel-restore-witness.test.tsx (1 test) 2723ms
+   ✓ cancelling a keyboard drag restores prior task and column state  2721ms
+ ✓ tests/board-ssr-window-witness.test.tsx (1 test) 114ms
+ ✓ tests/board-state.test.ts (10 tests) 13ms
+
+ Test Files  4 passed (4)
+      Tests  17 passed (17)
+   Start at  23:20:47
+   Duration  13.66s (transform 522ms, setup 46ms, collect 1.66s, tests 7.20s, environment 3.17s, prepare 619ms)
+

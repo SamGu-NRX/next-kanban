@@ -1,0 +1,5 @@
+# Baseline tsc receipt (fresh clone @ bd95ccb194e29760f71cd8eb0e8dcddb25370c9f)
+$ pnpm exec tsc --noEmit
+app/layout.tsx(23,11): error TS2322: Type '{ children: ReactNode; attribute: string; defaultTheme: string; enableSystem: true; disableTransitionOnChange: true; }' is not assignable to type 'IntrinsicAttributes & ThemeProviderProps'.
+  Property 'attribute' does not exist on type 'IntrinsicAttributes & ThemeProviderProps'.
+exit code: 2

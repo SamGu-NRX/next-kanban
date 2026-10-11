@@ -1,0 +1,34 @@
+# Milestone 2 verification receipt
+Date: 2026-10-10T22:51:19Z
+Node: v24.21.0
+Commit before this receipt: d8f5f4fffeb73057c25f77d5c4eff4bbbe01944a
+
+== tsc --noEmit ==
+exit 0 (typecheck clean)
+
+== vitest run ==
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 3 passed (4)
+      Tests  1 failed | 16 passed (17)
+   Start at  22:51:29
+   Duration  18.78s (transform 693ms, setup 125ms, collect 2.56s, tests 9.58s, environment 3.44s, prepare 1.10s)
+
+
+== lint (next lint) ==
+lint errors: none (pre-existing warnings only)
+
+== build (CI=true pnpm run build) ==
+
+Route (app)                                 Size  First Load JS
+┌ ○ /                                    58.8 kB         160 kB
+└ ○ /_not-found                            974 B         102 kB
++ First Load JS shared by all             101 kB
+  ├ chunks/24ac12ec-c65ffb745a4006bb.js  53.2 kB
+  ├ chunks/350-0944022654b7be80.js         46 kB
+  └ other shared chunks (total)          1.89 kB
+
+
+○  (Static)  prerendered as static content
+

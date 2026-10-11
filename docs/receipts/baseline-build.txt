@@ -1,0 +1,33 @@
+# Baseline next build receipt (fresh clone @ bd95ccb194e29760f71cd8eb0e8dcddb25370c9f)
+$ CI=true pnpm exec next build
+
+ ⚠ The Next.js plugin was not detected in your ESLint configuration. See https://nextjs.org/docs/app/api-reference/config/eslint#migrating-existing-config
+
+./app/layout.tsx
+9:14  Warning: Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components.  react-refresh/only-export-components
+
+./components/theme-provider.tsx
+72:14  Warning: Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components.  react-refresh/only-export-components
+
+./components/ui/badge.tsx
+36:17  Warning: Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components.  react-refresh/only-export-components
+
+./components/ui/button.tsx
+56:18  Warning: Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components.  react-refresh/only-export-components
+
+info  - Need to disable some ESLint rules? Learn more here: https://nextjs.org/docs/app/api-reference/config/eslint#disabling-rules
+Failed to compile.
+
+./app/layout.tsx:23:11
+Type error: Type '{ children: ReactNode; attribute: string; defaultTheme: string; enableSystem: true; disableTransitionOnChange: true; }' is not assignable to type 'IntrinsicAttributes & ThemeProviderProps'.
+  Property 'attribute' does not exist on type 'IntrinsicAttributes & ThemeProviderProps'.
+
+[0m [90m 21 |[39m       [33m<[39m[33mbody[39m className[33m=[39m{inter[33m.[39mclassName}[33m>[39m[0m
+[0m [90m 22 |[39m         [33m<[39m[33mThemeProvider[39m[0m
+[0m[31m[1m>[22m[39m[90m 23 |[39m           attribute[33m=[39m[32m"class"[39m[0m
+[0m [90m    |[39m           [31m[1m^[22m[39m[0m
+[0m [90m 24 |[39m           defaultTheme[33m=[39m[32m"system"[39m[0m
+[0m [90m 25 |[39m           enableSystem[0m
+[0m [90m 26 |[39m           disableTransitionOnChange[0m
+Next.js build worker exited with code: 1 and signal: null
+exit code: 1

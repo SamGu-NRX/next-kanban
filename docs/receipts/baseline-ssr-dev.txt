@@ -1,0 +1,21 @@
+# Baseline dev-server SSR crash receipt (fresh clone @ bd95ccb194e29760f71cd8eb0e8dcddb25370c9f)
+$ pnpm dev -p 3100  # then: curl -i http://localhost:3100/
+
+curl result: HTTP 500
+
+--- dev server log (tail) ---
+ ✓ Ready in 6.5s
+ ○ Compiling / ...
+ ✓ Compiled / in 64.8s (903 modules)
+ ⨯ ReferenceError: window is not defined
+    at KanbanBoard (components/KanbanBoard.tsx:258:21)
+  256 |       </BoardContainer>
+  257 |
+> 258 |       {"document" in window &&
+      |                     ^
+  259 |         createPortal(
+  260 |           <DragOverlay>
+  261 |             {activeColumn && ( {
+  digest: '509881076'
+}
+ GET / 500 in 69204ms
