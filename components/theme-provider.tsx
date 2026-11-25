@@ -20,6 +20,7 @@ const initialState = {
 
 const ThemeProviderContext = createContext<ThemeProviderState>(initialState);
 
+// TODO: fix
 export function ThemeProvider({
   children,
   defaultTheme = "system",

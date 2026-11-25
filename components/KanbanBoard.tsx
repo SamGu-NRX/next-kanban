@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
 
 import { BoardColumn, BoardContainer } from "./BoardColumn";
@@ -116,8 +116,27 @@ export function KanbanBoard() {
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
 
   const [activeColumn, setActiveColumn] = useState<Column | null>(null);
-
   const [activeTask, setActiveTask] = useState<Task | null>(null);
+  const updateCountRef = useRef<number>(0);
+  const lastUpdateTimeRef = useRef<number>(Date.now());
+
+  const updatePreview = useCallback((fn: () => void) => {
+    const now = Date.now();
+    const timeSinceLastUpdate = now - lastUpdateTimeRef.current;
+
+    // Reset counter if it's been more than 500ms since last update
+    if (timeSinceLastUpdate > 500) {
+      updateCountRef.current = 0;
+    }
+
+    updateCountRef.current++;
+    lastUpdateTimeRef.current = now;
+
+    // Only throttle if we detect rapid successive updates (> 50 updates in 500ms)
+    if (updateCountRef.current <= 50 || timeSinceLastUpdate > 5) {
+      fn();
+    }
+  }, []);
 
   const sensors = useSensors(
     useSensor(MouseSensor),
@@ -278,12 +297,12 @@ export function KanbanBoard() {
     if (!hasDraggableData(event.active)) return;
     const data = event.active.data.current;
     if (data?.type === "Column") {
-      setActiveColumn(data.column);
+      updatePreview(() => setActiveColumn(data.column));
       return;
     }
 
     if (data?.type === "Task") {
-      setActiveTask(data.task);
+      updatePreview(() => setActiveTask(data.task));
       return;
     }
   }
